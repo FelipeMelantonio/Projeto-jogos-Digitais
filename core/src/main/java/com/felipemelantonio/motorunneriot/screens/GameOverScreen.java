@@ -13,10 +13,12 @@ public class GameOverScreen implements Screen {
     private SpriteBatch batch;
     private BitmapFont font;
     private float distanciaFinal;
+    private int fase;
 
-    public GameOverScreen(MotoRunnerGame game, float distancia) {
+    public GameOverScreen(MotoRunnerGame game, float distancia, int fase) {
         this.game = game;
         this.distanciaFinal = distancia;
+        this.fase = fase;
         batch = new SpriteBatch();
         font = new BitmapFont();
     }
@@ -25,42 +27,24 @@ public class GameOverScreen implements Screen {
     public void render(float delta) {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         batch.begin();
-        font.draw(batch, "Game Over!", 350, 400);
+        font.getData().setScale(1.4f);
+        font.draw(batch, "GAME OVER", 340, 400);
+        font.getData().setScale(1.1f);
         font.draw(batch, "Distância percorrida: " + (int) distanciaFinal + " m", 300, 360);
-        font.draw(batch, "Press ENTER to Restart", 310, 320);
-        font.draw(batch, "Press ESC to Exit", 330, 300);
+        font.draw(batch, "ENTER - Reiniciar Fase", 310, 320);
+        font.draw(batch, "ESC - Menu Principal", 330, 290);
         batch.end();
-        if (Gdx.input.isKeyPressed(Input.Keys.ENTER)) {
-            game.setScreen(new GameScreen(game));
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.ESCAPE)) {
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER))
+            game.setScreen(new GameScreen(game, fase));
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))
             game.setScreen(new MenuScreen(game));
-        }
     }
 
-    @Override
-    public void dispose() {
-        batch.dispose();
-        font.dispose();
-    }
-
-    @Override
-    public void show() {
-    }
-
-    @Override
-    public void resize(int width, int height) {
-    }
-
-    @Override
-    public void pause() {
-    }
-
-    @Override
-    public void resume() {
-    }
-
-    @Override
-    public void hide() {
-    }
+    @Override public void dispose() { batch.dispose(); font.dispose(); }
+    @Override public void show() {}
+    @Override public void resize(int width, int height) {}
+    @Override public void pause() {}
+    @Override public void resume() {}
+    @Override public void hide() {}
 }
