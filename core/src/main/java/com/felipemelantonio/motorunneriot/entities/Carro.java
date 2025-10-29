@@ -4,10 +4,18 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Array;
+import java.util.Random;
 
 public class Carro {
-    private static Texture TEX;
 
+    // === TEXTURAS E SORTEIO ===
+    private static Array<Texture> texturasCarros;
+    private static boolean texturasCarregadas = false;
+    private static final Random random = new Random();
+
+    // === ATRIBUTOS DE INSTÂNCIA ===
+    private final Texture texturaCarro;
     private final Rectangle bounds;
     private final float velocidadePx;
     private static final float SCALE = 0.085f;
@@ -15,25 +23,45 @@ public class Carro {
     private final float[] lanesX;
     private final int laneIndex;
 
+    // === COMPATIBILIDADE COM GameScreen ===
     public static void initTextureIfNeeded() {
-        if (TEX == null) TEX = new Texture("carro.png");
+        // GameScreen chama esse método, então apenas redirecionamos
+        initTexturesIfNeeded();
+    }
+
+    // === MÉTODO ESTÁTICO PARA CARREGAR AS TEXTURAS ===
+    private static void initTexturesIfNeeded() {
+        if (!texturasCarregadas) {
+            texturasCarros = new Array<>();
+            texturasCarros.add(new Texture("carro.png"));
+            texturasCarros.add(new Texture("carro2.png"));
+            texturasCarros.add(new Texture("carro3.png"));
+            texturasCarros.add(new Texture("carro4.png"));
+            texturasCarros.add(new Texture("carro5.png"));
+            texturasCarros.add(new Texture("carro6.png"));
+            texturasCarros.add(new Texture("carro7.png"));
+            texturasCarregadas = true;
+        }
     }
 
     /**
-     * Use o MESMO laneCount e insetFactor da fase (os mesmos usados na Moto).
+     * Construtor principal — mantém toda a lógica de faixas do código base,
+     * adicionando o sorteio de textura entre vários modelos de carros.
      */
     public Carro(int laneIndex, float startY, float velocidadeCarroPx, int laneCount, float insetFactor) {
-        initTextureIfNeeded();
+        initTexturesIfNeeded();
+
+        // Sorteia uma textura aleatória para este carro
+        this.texturaCarro = texturasCarros.random();
 
         float screenWidth  = Gdx.graphics.getWidth();
-        float margem       = screenWidth * insetFactor; // mesma margem lateral da pista
+        float margem       = screenWidth * insetFactor;
         float larguraPista = screenWidth - (margem * 2);
 
         // === CÁLCULO DE CENTROS ALINHADO À MOTO ===
         float[] centers;
         switch (Math.max(2, laneCount)) {
             case 4: {
-                // Fase 3: 4 faixas — mesmas frações da Moto: 1/8, 3/8, 5/8, 7/8
                 float[] frac = new float[]{ 1f/8f, 3f/8f, 5f/8f, 7f/8f };
                 centers = new float[]{
                     margem + larguraPista * frac[0],
@@ -44,7 +72,6 @@ public class Carro {
                 break;
             }
             case 3: {
-                // Fase 2: 3 faixas — 1/4, 2/4, 3/4
                 float esp = larguraPista / 4f;
                 centers = new float[]{
                     margem + esp * 1f,
@@ -54,7 +81,6 @@ public class Carro {
                 break;
             }
             default: {
-                // Fase 1: 2 faixas — 1/3 e 2/3
                 float esp = larguraPista / 3f;
                 centers = new float[]{
                     margem + esp * 1f,
@@ -64,8 +90,8 @@ public class Carro {
             }
         }
 
-        float width  = TEX.getWidth()  * SCALE;
-        float height = TEX.getHeight() * SCALE;
+        float width  = texturaCarro.getWidth()  * SCALE;
+        float height = texturaCarro.getHeight() * SCALE;
 
         this.laneIndex = Math.max(0, Math.min(laneIndex, centers.length - 1));
         float laneX = centers[this.laneIndex];
@@ -82,21 +108,26 @@ public class Carro {
         this(laneIndex, startY, velocidadeCarroPx, 4, 0.15f);
     }
 
+    // === MÉTODOS PRINCIPAIS ===
     public void update(float dt, float worldSpeedPx) {
         bounds.y -= (worldSpeedPx + velocidadePx) * dt;
     }
 
     public void draw(SpriteBatch batch) {
-        batch.draw(TEX, bounds.x, bounds.y, bounds.width, bounds.height);
+        batch.draw(texturaCarro, bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
     public Rectangle getBounds() { return bounds; }
     public int getLaneIndex() { return laneIndex; }
 
+    // === LIMPEZA DE RECURSOS ===
     public static void disposeStatic() {
-        if (TEX != null) {
-            TEX.dispose();
-            TEX = null;
+        if (texturasCarregadas && texturasCarros != null) {
+            for (Texture t : texturasCarros) {
+                t.dispose();
+            }
+            texturasCarros.clear();
+            texturasCarregadas = false;
         }
     }
 }
