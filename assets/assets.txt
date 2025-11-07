@@ -9,4 +9,5 @@ estrada.png
 fase1.png
 fase2.png
 fasses.png
+moeda.png
 moto.png
