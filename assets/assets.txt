@@ -1,3 +1,10 @@
+Jogar.png
+Logo.png
+Nivel1.png
+Nivel2.png
+Nivel3.png
+Sair.png
+Selecionar.png
 carro.png
 carro2.png
 carro3.png

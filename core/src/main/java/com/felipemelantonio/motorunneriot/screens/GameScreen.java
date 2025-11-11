@@ -5,8 +5,10 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Array;
 
 import com.felipemelantonio.motorunneriot.MotoRunnerGame;
@@ -76,10 +78,24 @@ public class GameScreen implements Screen {
     // === FIM DE FASE ===
     private boolean finishing = false; // durante a animação final
     private float finishTimer = 0f; // cronômetro da animação final
+    private boolean fadingOut = false;
+    private float fadeAlpha = 1f;
+
+    // ==========================
+    // === SELEÇÃO DE NÍVEL ===
+    // ==========================
+    private final boolean selectingLevel; // true quando faseSelecionada == 0
+    private Texture texSelecionar;
+    private float selX, selY, selW, selH; // posição/dimensões da arte
+    private final Rectangle rLv1 = new Rectangle();
+    private final Rectangle rLv2 = new Rectangle();
+    private final Rectangle rLv3 = new Rectangle();
 
     public GameScreen(MotoRunnerGame game, int faseSelecionada) {
         this.game = game;
-        this.fase = Math.max(1, Math.min(3, faseSelecionada));
+        // se 0 => modo seleção; senão joga
+        this.selectingLevel = (faseSelecionada == 0);
+        this.fase = Math.max(1, Math.min(3, selectingLevel ? 1 : faseSelecionada));
     }
 
     @Override
@@ -123,10 +139,128 @@ public class GameScreen implements Screen {
         laneDwell = new float[laneCount];
 
         coinIntervalBase = (fase == 1 ? 1.2f : fase == 2 ? 1.0f : 0.9f);
+
+        // --- seleção por imagem ---
+        if (selectingLevel) {
+            moto.setControlsEnabled(false);
+            texSelecionar = loadTex("Selecionar.png"); // coloque em android/assets/ com este nome
+            layoutSelection();
+        }
+    }
+
+    private Texture loadTex(String path) {
+        try {
+            if (!Gdx.files.internal(path).exists())
+                return null;
+            Texture t = new Texture(path);
+            t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            return t;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Centraliza Selecionar.png e cria as hitboxes dos 3 botões */
+    private void layoutSelection() {
+        if (texSelecionar == null)
+            return;
+        float W = Gdx.graphics.getWidth();
+        float H = Gdx.graphics.getHeight();
+
+        // ocupa ~60% da largura, mantendo proporção
+        selW = W * 0.60f;
+        selH = selW * ((float) texSelecionar.getHeight() / texSelecionar.getWidth());
+        selX = (W - selW) * 0.5f;
+        selY = H * 0.62f - selH * 0.5f; // um pouco acima do centro
+
+        // A arte (768x768) – percentuais aproximados das áreas dos botões
+        float bw = selW * 0.74f;
+        float bh = selH * 0.13f;
+        float bx = selX + selW * 0.13f;
+
+        float by1 = selY + selH * 0.48f; // NÍVEL 1
+        float by2 = selY + selH * 0.32f; // NÍVEL 2
+        float by3 = selY + selH * 0.16f; // NÍVEL 3
+
+        rLv1.set(bx, by1, bw, bh);
+        rLv2.set(bx, by2, bw, bh);
+        rLv3.set(bx, by3, bw, bh);
     }
 
     @Override
     public void render(float delta) {
+
+        // === OVERLAY DE SELEÇÃO DE NÍVEL ===
+        if (selectingLevel) {
+            float dt = Math.min(delta, 1f / 60f);
+
+            // Fundo animado
+            worldSpeed = 260f;
+            background.setSpeed(worldSpeed);
+            background.update(dt);
+            moto.update(dt, 0f); // personagem parado
+
+            Gdx.gl.glClearColor(0, 0, 0, 1);
+            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+            batch.begin();
+            background.draw(batch);
+            moto.draw(batch);
+            if (texSelecionar != null) {
+                batch.draw(texSelecionar, selX, selY, selW, selH);
+            } else {
+                // fallback textual
+                font.getData().setScale(2.0f);
+                font.setColor(Color.GOLD);
+                font.draw(batch, "SELECIONE O NÍVEL", Gdx.graphics.getWidth() * 0.5f - 220f,
+                        Gdx.graphics.getHeight() * 0.60f);
+                font.setColor(Color.WHITE);
+                font.getData().setScale(1.6f);
+                font.draw(batch, "Nível 1", Gdx.graphics.getWidth() * 0.5f - 60f, Gdx.graphics.getHeight() * 0.50f);
+                font.draw(batch, "Nível 2", Gdx.graphics.getWidth() * 0.5f - 60f, Gdx.graphics.getHeight() * 0.43f);
+                font.draw(batch, "Nível 3", Gdx.graphics.getWidth() * 0.5f - 60f, Gdx.graphics.getHeight() * 0.36f);
+            }
+            batch.end();
+
+            // Mouse/Touch
+            if (Gdx.input.justTouched()) {
+                float mx = Gdx.input.getX();
+                float my = Gdx.graphics.getHeight() - Gdx.input.getY();
+                if (rLv1.contains(mx, my)) {
+                    game.setScreen(new GameScreen(game, 1));
+                    return;
+                }
+                if (rLv2.contains(mx, my)) {
+                    game.setScreen(new GameScreen(game, 2));
+                    return;
+                }
+                if (rLv3.contains(mx, my)) {
+                    game.setScreen(new GameScreen(game, 3));
+                    return;
+                }
+            }
+            // Teclado
+            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) {
+                game.setScreen(new GameScreen(game, 1));
+                return;
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)) {
+                game.setScreen(new GameScreen(game, 2));
+                return;
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)) {
+                game.setScreen(new GameScreen(game, 3));
+                return;
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                game.setScreen(new MenuScreen(game));
+                return;
+            }
+
+            return; // não processa o resto do jogo enquanto está no overlay
+        }
+
+        // ====== JOGO NORMAL ======
         if (isPaused) {
             renderPause();
             return;
@@ -186,9 +320,19 @@ public class GameScreen implements Screen {
         // Atualiza objetos
         for (int i = carros.size - 1; i >= 0; i--) {
             Carro c = carros.get(i);
-            c.update(dt, worldSpeed);
-            if (c.getBounds().y + c.getBounds().height < 0)
-                carros.removeIndex(i);
+
+            if (finishing) {
+                // Quando o jogador vence, os carros sobem suavemente (efeito de "fuga")
+                c.getBounds().y += 220 * dt; // velocidade para cima
+                if (c.getBounds().y > Gdx.graphics.getHeight() + 100) {
+                    carros.removeIndex(i); // remove quando sai da tela
+                }
+            } else {
+                // Movimento normal dos carros durante o jogo
+                c.update(dt, worldSpeed);
+                if (c.getBounds().y + c.getBounds().height < 0)
+                    carros.removeIndex(i);
+            }
         }
         for (int i = moedas.size - 1; i >= 0; i--) {
             Moeda m = moedas.get(i);
@@ -211,6 +355,14 @@ public class GameScreen implements Screen {
         if (!finishing && distancia >= meta) {
             finishing = true;
             finishTimer = 0f;
+
+            // Para spawns novos
+            spawnTimer = -9999f;
+            coinSpawnTimer = -9999f;
+
+            // Transição suave (fade + fuga para cima)
+            fadingOut = true;
+            fadeAlpha = 1f;
         }
 
         // Colisão somente se não estiver finalizando
@@ -228,6 +380,7 @@ public class GameScreen implements Screen {
         if (finishing) {
             finishTimer += dt;
             moto.getBounds().y += dt * 260f; // sobe a moto
+            background.setSpeed(worldSpeed * 1.3f);
             // após ~2s troca para tela de vitória
             if (finishTimer >= 2.0f) {
                 game.setScreen(new LevelCompleteScreen(game, fase, (int) distancia, moedasColetadas));
@@ -239,10 +392,39 @@ public class GameScreen implements Screen {
         // Desenho
         batch.begin();
         background.draw(batch);
-        for (Moeda m : moedas)
-            m.draw(batch);
-        for (Carro c : carros)
-            c.draw(batch);
+        if (!finishing) {
+            for (Moeda m : moedas)
+                m.draw(batch);
+            for (Carro c : carros)
+                c.draw(batch);
+        } else {
+            // Durante o final, cria um fade suave e movimento natural
+            if (fadingOut) {
+                fadeAlpha -= delta * 0.8f; // velocidade do fade (1.25s até sumir)
+                if (fadeAlpha <= 0f) {
+                    fadeAlpha = 0f;
+                    fadingOut = false;
+                    carros.clear();
+                    moedas.clear();
+                }
+            }
+
+            Color oldColor = batch.getColor();
+            batch.setColor(oldColor.r, oldColor.g, oldColor.b, fadeAlpha);
+
+            // Carros descem naturalmente enquanto desaparecem
+            for (Carro c : carros) {
+                c.getBounds().y -= delta * 120f; // desliza para fora da tela
+                c.draw(batch);
+            }
+
+            for (Moeda m : moedas) {
+                m.getBounds().y -= delta * 120f;
+                m.draw(batch);
+            }
+
+            batch.setColor(oldColor);
+        }
         moto.draw(batch);
 
         float h = Gdx.graphics.getHeight();
@@ -574,6 +756,8 @@ public class GameScreen implements Screen {
     public void resize(int width, int height) {
         if (background != null)
             background.onResize();
+        if (selectingLevel)
+            layoutSelection();
     }
 
     @Override
@@ -600,5 +784,7 @@ public class GameScreen implements Screen {
             background.dispose();
         Carro.disposeStatic();
         Moeda.disposeStatic();
+        if (texSelecionar != null)
+            texSelecionar.dispose();
     }
 }

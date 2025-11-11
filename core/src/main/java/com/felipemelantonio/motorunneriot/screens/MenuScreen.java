@@ -3,34 +3,42 @@ package com.felipemelantonio.motorunneriot.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.audio.Music;
-import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Rectangle;
 import com.felipemelantonio.motorunneriot.MotoRunnerGame;
+import com.felipemelantonio.motorunneriot.entities.Background;
+import com.felipemelantonio.motorunneriot.entities.Moto;
 
 public class MenuScreen implements Screen {
 
     private final MotoRunnerGame game;
     private SpriteBatch batch;
-    private BitmapFont fontTitle, fontOptions;
+    private BitmapFont font, small;
+    private Background bg;
+    private Moto moto;
 
-    private Texture background; // menu_bg.png (opcional)
-    private Texture logo;       // logo.png (opcional)
-    private Sound hoverSound;   // hover.wav (opcional)
-    private Sound clickSound;   // click.wav (opcional)
-    private Music music;        // menu_music.mp3 (opcional)
+    private Texture texLogo, texJogar, texSair;
 
-    private int selectedOption = 0;
-    private String[] options = {
-            "Fase 1 — Coordenação Inicial (2 faixas)",
-            "Fase 2 — Resistência e Ritmo (3 faixas)",
-            "Fase 3 — Potência e Reflexo (4 faixas)",
-            "Sair"
-    };
+    // Retângulos de clique/desenho (iguais ao que aparece na tela)
+    private final Rectangle rJogar = new Rectangle();
+    private final Rectangle rSair = new Rectangle();
+
+    private float roadSpeed = 280f;
+
+    // posição/tamanho do logo
+    private float _logoX, _logoY, _logoW, _logoH;
+
+    // ===== parâmetros de layout (fáceis de ajustar) =====
+    private static final float TOP_MARGIN_RATIO = 0.08f; // margem superior do logo (%H)
+    private static final float TITLE_WIDTH_RATIO = 0.68f; // %W para o logo
+    private static final float BTN_WIDTH_RATIO = 0.28f; // %W para botões (padronizados)
+    private static final float BTN_GAP_RATIO = 0.40f; // gap vertical = % da ALTURA do botão
+    private static final float BOTTOM_MARGIN_RATIO = 0.10f; // margem inferior (%H)
+    private static final float HINT_Y_RATIO = 0.05f; // posição do texto de dica
 
     public MenuScreen(MotoRunnerGame game) {
         this.game = game;
@@ -38,178 +46,205 @@ public class MenuScreen implements Screen {
 
     @Override
     public void show() {
-        Gdx.app.log("Menu", "show()");
         batch = new SpriteBatch();
-        fontTitle = new BitmapFont();
-        fontOptions = new BitmapFont();
-        fontTitle.setColor(Color.GOLD);
-        fontOptions.setColor(Color.WHITE);
+        font = new BitmapFont();
+        small = new BitmapFont();
+        font.setColor(Color.WHITE);
+        small.setColor(new Color(1, 1, 1, 0.85f));
 
-        background = tryLoadTexture("menu_bg.png");
-        logo       = tryLoadTexture("logo.png");
-        hoverSound = tryLoadSound("hover.wav");
-        clickSound = tryLoadSound("click.wav");
-        music      = tryLoadMusic("menu_music.mp3");
+        bg = new Background("fase2.png", roadSpeed);
+        moto = new Moto(3, 0.22f);
+        moto.setControlsEnabled(false);
 
-        if (music != null) {
-            music.setLooping(true);
-            music.setVolume(0.4f);
-            music.play();
+        texLogo = loadOrNull("Logo.png");
+        texJogar = loadOrNull("Jogar.png");
+        texSair = loadOrNull("Sair.png");
+
+        // filtros para nitidez
+        if (texLogo != null)
+            texLogo.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        if (texJogar != null)
+            texJogar.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        if (texSair != null)
+            texSair.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        layout();
+    }
+
+    private Texture loadOrNull(String path) {
+        try {
+            if (!Gdx.files.internal(path).exists())
+                return null;
+            return new Texture(path);
+        } catch (Exception e) {
+            return null;
         }
+    }
+
+    private void layout() {
+        final float W = Gdx.graphics.getWidth();
+        final float H = Gdx.graphics.getHeight();
+
+        // Margens seguras
+        final float TOP_MARGIN = H * 0.08f;
+        final float BOTTOM_MARGIN = H * 0.10f;
+
+        // Larguras-alvo (antes de checar se cabe)
+        float logoW = W * 0.60f; // ligeiramente menor p/ sobrar respiro
+        float btnW = W * 0.26f; // botões padronizados
+
+        // Alturas a partir da proporção das imagens (fallbacks caso não exista textura)
+        float logoH = (texLogo != null) ? logoW * texLogo.getHeight() / texLogo.getWidth() : H * 0.12f;
+        // Use o aspecto do JOGAR como referência para ambos os botões
+        float btnAspect = (texJogar != null)
+                ? (float) texJogar.getHeight() / (float) texJogar.getWidth()
+                : 0.24f; // fallback
+        float btnH = btnW * btnAspect;
+
+        // Um único espaçamento para padronizar visualmente
+        float SP = H * 0.035f;
+
+        // Altura total do bloco (logo + jogar + sair + espaçamentos)
+        float total = logoH + SP + btnH + SP + btnH;
+
+        // Área útil entre as margens
+        float available = H - TOP_MARGIN - BOTTOM_MARGIN;
+
+        // Se não couber, escala tudo (logo, botões E espaçamento) com o mesmo fator
+        if (total > available) {
+            float f = available / total;
+            logoW *= f;
+            logoH *= f;
+            btnW *= f;
+            btnH *= f;
+            SP *= f;
+            total = logoH + SP + btnH + SP + btnH; // recalc
+        }
+
+        // Centraliza verticalmente o bloco dentro da área útil (respeitando margens)
+        float blockBottom = BOTTOM_MARGIN + (available - total) * 0.5f;
+
+        // Calcula posições de baixo para cima: SAIR -> JOGAR -> LOGO
+        float ySair = blockBottom;
+        float yJogar = ySair + btnH + SP;
+        float yLogo = yJogar + btnH + SP;
+
+        // Centraliza horizontalmente
+        float logoX = (W - logoW) * 0.5f;
+        float btnX = (W - btnW) * 0.5f;
+
+        // Grava nos campos/retângulos usados no draw e no hitbox
+        _logoX = logoX;
+        _logoY = yLogo;
+        _logoW = logoW;
+        _logoH = logoH;
+
+        rJogar.set(btnX, yJogar, btnW, btnH);
+        rSair.set(btnX, ySair, btnW, btnH);
     }
 
     @Override
     public void render(float delta) {
+        float dt = Math.min(delta, 1f / 60f);
+        bg.setSpeed(roadSpeed);
+        bg.update(dt);
+        moto.update(dt, roadSpeed);
+
         handleInput();
 
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.begin();
+        // Fundo e moto (moto atrás da UI)
+        bg.draw(batch);
+        moto.draw(batch);
 
-        // Fundo
-        if (background != null) {
-            batch.setColor(1, 1, 1, 0.95f);
-            batch.draw(background, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-            batch.setColor(1, 1, 1, 1);
+        // LOGO
+        if (texLogo != null) {
+            batch.draw(texLogo, _logoX, _logoY, _logoW, _logoH);
+        } else {
+            float W = Gdx.graphics.getWidth();
+            font.getData().setScale(2.0f);
+            font.draw(batch, "MOTO RUNNER IoT", W * 0.5f - 260f, _logoY + _logoH * 0.75f);
         }
 
-        // Título
-        fontTitle.getData().setScale(2.2f);
-        String title = "🏍️  MOTO RUNNER IoT";
-        float titleX = (Gdx.graphics.getWidth() - 520) / 2f;
-        fontTitle.draw(batch, title, titleX, 500);
+        // BOTÕES (desenha usando exatamente os retângulos de clique)
+        if (texJogar != null)
+            batch.draw(texJogar, rJogar.x, rJogar.y, rJogar.width, rJogar.height);
+        if (texSair != null)
+            batch.draw(texSair, rSair.x, rSair.y, rSair.width, rSair.height);
 
-        // Logo (opcional)
-        if (logo != null) {
-            float lx = (Gdx.graphics.getWidth() - logo.getWidth()) / 2f;
-            batch.draw(logo, lx, 360);
-        }
-
-        // Opções
-        fontOptions.getData().setScale(1.3f);
-        float startY = 300;
-        float x = 200;
-        float line = 46;
-
-        for (int i = 0; i < options.length; i++) {
-            boolean sel = (i == selectedOption);
-            fontOptions.setColor(sel ? Color.YELLOW : Color.WHITE);
-            float y = startY - i * line;
-            fontOptions.draw(batch, options[i], x, y);
-        }
-
-        fontOptions.setColor(Color.LIGHT_GRAY);
-        fontOptions.getData().setScale(1f);
-        fontOptions.draw(batch, "↑/↓ ou 1/2/3 | ENTER/ESPAÇO para selecionar | ESC para sair", 140, 90);
+        // Dica
+        small.getData().setScale(1.1f);
+        small.draw(batch, "ENTER para JOGAR  •  ESC para SAIR",
+                25, Gdx.graphics.getHeight() * HINT_Y_RATIO);
 
         batch.end();
     }
 
     private void handleInput() {
-        // Navegação
-        if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) changeSelection(-1);
-        if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) changeSelection(1);
+        float H = Gdx.graphics.getHeight();
 
-        // Atalhos por número
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) { selectedOption = 0; confirmSelection(); }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) { selectedOption = 1; confirmSelection(); }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) { selectedOption = 2; confirmSelection(); }
-
-        // Confirmar
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            confirmSelection();
+        // Clique do mouse/touch
+        if (Gdx.input.justTouched()) {
+            float mx = Gdx.input.getX();
+            float my = H - Gdx.input.getY();
+            if (rJogar.contains(mx, my)) {
+                game.setScreen(new LevelSelectScreen(game));
+                return;
+            }
+            if (rSair.contains(mx, my)) {
+                Gdx.app.exit();
+                return;
+            }
         }
 
-        // Sair
+        // Teclado
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            game.setScreen(new LevelSelectScreen(game));
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            stopAudio();
             Gdx.app.exit();
         }
     }
 
-    private void changeSelection(int dir) {
-        int prev = selectedOption;
-        selectedOption = (selectedOption + dir + options.length) % options.length;
-        if (hoverSound != null && selectedOption != prev) hoverSound.play(0.4f);
-        Gdx.app.log("Menu", "selectedOption=" + selectedOption);
+    @Override
+    public void resize(int width, int height) {
+        layout();
+        if (bg != null)
+            bg.onResize();
     }
 
-    private void confirmSelection() {
-        if (clickSound != null) clickSound.play();
-        Gdx.app.log("Menu", "confirm -> option " + selectedOption);
-        stopAudio(); // para a música antes de trocar de tela
-
-        switch (selectedOption) {
-            case 0:
-                game.setScreen(new GameScreen(game, 1));
-                break;
-            case 1:
-                game.setScreen(new GameScreen(game, 2));
-                break;
-            case 2:
-                game.setScreen(new GameScreen(game, 3));
-                break;
-            case 3:
-                Gdx.app.exit();
-                break;
-            default:
-                break;
-        }
-
-        // ⚠️ NÃO chamar dispose() aqui — evita crash nativo
+    @Override
+    public void pause() {
     }
 
-    private void stopAudio() {
-        if (music != null) music.stop();
+    @Override
+    public void resume() {
     }
 
-    private Texture tryLoadTexture(String path) {
-        try {
-            if (!Gdx.files.internal(path).exists()) return null;
-            Texture t = new Texture(path);
-            t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            return t;
-        } catch (Exception e) {
-            Gdx.app.error("Menu", "Erro ao carregar textura: " + path, e);
-            return null;
-        }
+    @Override
+    public void hide() {
     }
-
-    private Sound tryLoadSound(String path) {
-        try {
-            if (!Gdx.files.internal(path).exists()) return null;
-            return Gdx.audio.newSound(Gdx.files.internal(path));
-        } catch (Exception e) {
-            Gdx.app.error("Menu", "Erro ao carregar som: " + path, e);
-            return null;
-        }
-    }
-
-    private Music tryLoadMusic(String path) {
-        try {
-            if (!Gdx.files.internal(path).exists()) return null;
-            return Gdx.audio.newMusic(Gdx.files.internal(path));
-        } catch (Exception e) {
-            Gdx.app.error("Menu", "Erro ao carregar música: " + path, e);
-            return null;
-        }
-    }
-
-    @Override public void resize(int width, int height) {}
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() {}
 
     @Override
     public void dispose() {
-        if (batch != null) batch.dispose();
-        if (fontTitle != null) fontTitle.dispose();
-        if (fontOptions != null) fontOptions.dispose();
-        if (background != null) background.dispose();
-        if (logo != null) logo.dispose();
-        if (hoverSound != null) hoverSound.dispose();
-        if (clickSound != null) clickSound.dispose();
-        if (music != null) music.dispose();
+        if (batch != null)
+            batch.dispose();
+        if (font != null)
+            font.dispose();
+        if (small != null)
+            small.dispose();
+        if (bg != null)
+            bg.dispose();
+        if (moto != null)
+            moto.dispose();
+        if (texLogo != null)
+            texLogo.dispose();
+        if (texJogar != null)
+            texJogar.dispose();
+        if (texSair != null)
+            texSair.dispose();
     }
 }
