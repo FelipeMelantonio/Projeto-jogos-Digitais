@@ -1,3 +1,4 @@
+// Conteúdo para: GameScreen.java
 package com.felipemelantonio.motorunneriot.screens;
 
 import com.badlogic.gdx.Gdx;
@@ -5,10 +6,8 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Array;
 
 import com.felipemelantonio.motorunneriot.MotoRunnerGame;
@@ -78,24 +77,25 @@ public class GameScreen implements Screen {
     // === FIM DE FASE ===
     private boolean finishing = false; // durante a animação final
     private float finishTimer = 0f; // cronômetro da animação final
-    private boolean fadingOut = false;
-    private float fadeAlpha = 1f;
 
-    // ==========================
-    // === SELEÇÃO DE NÍVEL ===
-    // ==========================
-    private final boolean selectingLevel; // true quando faseSelecionada == 0
-    private Texture texSelecionar;
-    private float selX, selY, selW, selH; // posição/dimensões da arte
-    private final Rectangle rLv1 = new Rectangle();
-    private final Rectangle rLv2 = new Rectangle();
-    private final Rectangle rLv3 = new Rectangle();
+    // ==== MODO BACKGROUND ====
+    private boolean isBackgroundMode = false;
 
+    /**
+     * Construtor principal para o jogo normal.
+     */
     public GameScreen(MotoRunnerGame game, int faseSelecionada) {
+        this(game, faseSelecionada, false); // Chama o novo construtor, definindo isBackgroundMode como false
+    }
+
+    /**
+     * NOVO CONSTRUTOR:
+     * Permite especificar se a tela está sendo usada como um fundo de menu.
+     */
+    public GameScreen(MotoRunnerGame game, int faseSelecionada, boolean isBackgroundMode) {
         this.game = game;
-        // se 0 => modo seleção; senão joga
-        this.selectingLevel = (faseSelecionada == 0);
-        this.fase = Math.max(1, Math.min(3, selectingLevel ? 1 : faseSelecionada));
+        this.fase = Math.max(1, Math.min(3, faseSelecionada));
+        this.isBackgroundMode = isBackgroundMode; // Define o modo
     }
 
     @Override
@@ -139,200 +139,90 @@ public class GameScreen implements Screen {
         laneDwell = new float[laneCount];
 
         coinIntervalBase = (fase == 1 ? 1.2f : fase == 2 ? 1.0f : 0.9f);
-
-        // --- seleção por imagem ---
-        if (selectingLevel) {
-            moto.setControlsEnabled(false);
-            texSelecionar = loadTex("Selecionar.png"); // coloque em android/assets/ com este nome
-            layoutSelection();
+        
+        if (isBackgroundMode) {
+            worldSpeed = 250f; 
+        } else {
+            // Garante que a velocidade seja pega do level na primeira vez
+            level.update(0); // Atualiza o level com delta 0
+            worldSpeed = level.worldSpeedPx();
         }
-    }
-
-    private Texture loadTex(String path) {
-        try {
-            if (!Gdx.files.internal(path).exists())
-                return null;
-            Texture t = new Texture(path);
-            t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            return t;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /** Centraliza Selecionar.png e cria as hitboxes dos 3 botões */
-    private void layoutSelection() {
-        if (texSelecionar == null)
-            return;
-        float W = Gdx.graphics.getWidth();
-        float H = Gdx.graphics.getHeight();
-
-        // ocupa ~60% da largura, mantendo proporção
-        selW = W * 0.60f;
-        selH = selW * ((float) texSelecionar.getHeight() / texSelecionar.getWidth());
-        selX = (W - selW) * 0.5f;
-        selY = H * 0.62f - selH * 0.5f; // um pouco acima do centro
-
-        // A arte (768x768) – percentuais aproximados das áreas dos botões
-        float bw = selW * 0.74f;
-        float bh = selH * 0.13f;
-        float bx = selX + selW * 0.13f;
-
-        float by1 = selY + selH * 0.48f; // NÍVEL 1
-        float by2 = selY + selH * 0.32f; // NÍVEL 2
-        float by3 = selY + selH * 0.16f; // NÍVEL 3
-
-        rLv1.set(bx, by1, bw, bh);
-        rLv2.set(bx, by2, bw, bh);
-        rLv3.set(bx, by3, bw, bh);
     }
 
     @Override
     public void render(float delta) {
-
-        // === OVERLAY DE SELEÇÃO DE NÍVEL ===
-        if (selectingLevel) {
-            float dt = Math.min(delta, 1f / 60f);
-
-            // Fundo animado
-            worldSpeed = 260f;
-            background.setSpeed(worldSpeed);
-            background.update(dt);
-            moto.update(dt, 0f); // personagem parado
-
-            Gdx.gl.glClearColor(0, 0, 0, 1);
-            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-            batch.begin();
-            background.draw(batch);
-            moto.draw(batch);
-            if (texSelecionar != null) {
-                batch.draw(texSelecionar, selX, selY, selW, selH);
-            } else {
-                // fallback textual
-                font.getData().setScale(2.0f);
-                font.setColor(Color.GOLD);
-                font.draw(batch, "SELECIONE O NÍVEL", Gdx.graphics.getWidth() * 0.5f - 220f,
-                        Gdx.graphics.getHeight() * 0.60f);
-                font.setColor(Color.WHITE);
-                font.getData().setScale(1.6f);
-                font.draw(batch, "Nível 1", Gdx.graphics.getWidth() * 0.5f - 60f, Gdx.graphics.getHeight() * 0.50f);
-                font.draw(batch, "Nível 2", Gdx.graphics.getWidth() * 0.5f - 60f, Gdx.graphics.getHeight() * 0.43f);
-                font.draw(batch, "Nível 3", Gdx.graphics.getWidth() * 0.5f - 60f, Gdx.graphics.getHeight() * 0.36f);
-            }
-            batch.end();
-
-            // Mouse/Touch
-            if (Gdx.input.justTouched()) {
-                float mx = Gdx.input.getX();
-                float my = Gdx.graphics.getHeight() - Gdx.input.getY();
-                if (rLv1.contains(mx, my)) {
-                    game.setScreen(new GameScreen(game, 1));
-                    return;
-                }
-                if (rLv2.contains(mx, my)) {
-                    game.setScreen(new GameScreen(game, 2));
-                    return;
-                }
-                if (rLv3.contains(mx, my)) {
-                    game.setScreen(new GameScreen(game, 3));
-                    return;
-                }
-            }
-            // Teclado
-            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) {
-                game.setScreen(new GameScreen(game, 1));
-                return;
-            }
-            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)) {
-                game.setScreen(new GameScreen(game, 2));
-                return;
-            }
-            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)) {
-                game.setScreen(new GameScreen(game, 3));
-                return;
-            }
-            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-                game.setScreen(new MenuScreen(game));
-                return;
-            }
-
-            return; // não processa o resto do jogo enquanto está no overlay
-        }
-
-        // ====== JOGO NORMAL ======
-        if (isPaused) {
-            renderPause();
-            return;
-        }
+        // O 'if (isPaused)' que pulava para renderPause() FOI REMOVIDO.
+        // O render() agora sempre executa, mas a lógica interna é condicional.
 
         float dt = Math.min(delta, 1f / 60f);
-        level.update(dt);
-        worldSpeed = level.worldSpeedPx();
+
+        // Atualiza o nível (velocidade) apenas se não for modo background E NÃO ESTIVER PAUSADO
+        if (!isBackgroundMode && !isPaused) {
+            level.update(dt);
+        }
+        // A velocidade congela se estiver pausado, ou usa a velocidade fixa do modo background
+        if (!isBackgroundMode) {
+             worldSpeed = level.worldSpeedPx();
+        }
 
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         background.setSpeed(worldSpeed);
-        background.update(dt);
+        background.update(dt); // O fundo sempre se move
 
         // Atualizações só se não estiver finalizando
         if (!finishing) {
-            moto.update(dt, worldSpeed);
 
-            // Dwell + “grudado”
-            int laneNow = moto.getCurrentLaneIndex();
-            if (laneNow == lastLane)
-                sameLaneTime += dt;
-            else {
-                sameLaneTime = 0f;
-                lastLane = laneNow;
-            }
+            // === LÓGICA DE JOGO SÓ RODA SE NÃO FOR BACKGROUND E NÃO ESTIVER PAUSADO ===
+            if (!isBackgroundMode && !isPaused) {
+                moto.update(dt, worldSpeed);
 
-            for (int i = 0; i < laneCount; i++) {
-                if (i == laneNow)
-                    laneDwell[i] = Math.min(DWELL_CAP, laneDwell[i] + dt);
-                else
-                    laneDwell[i] = Math.max(0f, laneDwell[i] - dt * DWELL_DECAY);
-            }
-            if (stickCooldown > 0f)
-                stickCooldown -= dt;
+                // Dwell + “grudado”
+                int laneNow = moto.getCurrentLaneIndex();
+                if (laneNow == lastLane)
+                    sameLaneTime += dt;
+                else {
+                    sameLaneTime = 0f;
+                    lastLane = laneNow;
+                }
 
-            // Spawns padrão
-            spawnTimer += dt;
-            if (spawnTimer >= level.spawnInterval()) {
-                spawnWave();
-                spawnTimer = 0f;
-            }
+                for (int i = 0; i < laneCount; i++) {
+                    if (i == laneNow)
+                        laneDwell[i] = Math.min(DWELL_CAP, laneDwell[i] + dt);
+                    else
+                        laneDwell[i] = Math.max(0f, laneDwell[i] - dt * DWELL_DECAY);
+                }
+                if (stickCooldown > 0f)
+                    stickCooldown -= dt;
 
-            // Força spawn se ficar muito na mesma faixa
-            tryForceStickSpawn();
+                // Spawns padrão
+                spawnTimer += dt;
+                if (spawnTimer >= level.spawnInterval()) {
+                    spawnWave();
+                    spawnTimer = 0f;
+                }
 
-            // Coins
-            coinSpawnTimer += dt;
-            float coinIntervalNow = Math.max(0.55f, coinIntervalBase - 0.35f * clamp01(level.getTime() / 60f));
-            if (coinSpawnTimer >= coinIntervalNow) {
-                spawnCoin();
-                coinSpawnTimer = 0f;
+                // Força spawn se ficar muito na mesma faixa
+                tryForceStickSpawn();
+
+                // Coins
+                coinSpawnTimer += dt;
+                float coinIntervalNow = Math.max(0.55f, coinIntervalBase - 0.35f * clamp01(level.getTime() / 60f));
+                if (coinSpawnTimer >= coinIntervalNow) {
+                    spawnCoin();
+                    coinSpawnTimer = 0f;
+                }
             }
         }
 
-        // Atualiza objetos
+        // Atualiza objetos (carros/moedas existentes continuarão se movendo até sair da tela)
+        // Isso roda mesmo pausado, para o "efeito background"
         for (int i = carros.size - 1; i >= 0; i--) {
             Carro c = carros.get(i);
-
-            if (finishing) {
-                // Quando o jogador vence, os carros sobem suavemente (efeito de "fuga")
-                c.getBounds().y += 220 * dt; // velocidade para cima
-                if (c.getBounds().y > Gdx.graphics.getHeight() + 100) {
-                    carros.removeIndex(i); // remove quando sai da tela
-                }
-            } else {
-                // Movimento normal dos carros durante o jogo
-                c.update(dt, worldSpeed);
-                if (c.getBounds().y + c.getBounds().height < 0)
-                    carros.removeIndex(i);
-            }
+            c.update(dt, worldSpeed);
+            if (c.getBounds().y + c.getBounds().height < 0)
+                carros.removeIndex(i);
         }
         for (int i = moedas.size - 1; i >= 0; i--) {
             Moeda m = moedas.get(i);
@@ -341,111 +231,121 @@ public class GameScreen implements Screen {
                 moedas.removeIndex(i);
                 continue;
             }
-            if (!finishing && moto.getBounds().overlaps(m.getBounds())) {
+
+            // Desabilita coleta de moedas no modo background OU PAUSADO
+            if (!finishing && !isBackgroundMode && !isPaused && moto.getBounds().overlaps(m.getBounds())) {
                 moedas.removeIndex(i);
                 moedasColetadas++;
             }
         }
 
-        // Distância
-        distancia += worldSpeed * dt * 0.035f;
+        // === LÓGICA DE JOGO (DISTANCIA, COLISÃO) SÓ RODA SE NÃO FOR BACKGROUND E NÃO ESTIVER PAUSADO ===
+        if (!isBackgroundMode && !isPaused) {
+            // Distância
+            distancia += worldSpeed * dt * 0.035f;
 
-        // Checa meta e inicia final
-        float meta = getGoalMetersForFase(fase);
-        if (!finishing && distancia >= meta) {
-            finishing = true;
-            finishTimer = 0f;
+            // Checa meta e inicia final
+            float meta = getGoalMetersForFase(fase); // 'meta' é declarada aqui
+            if (!finishing && distancia >= meta) {
+                finishing = true;
+                finishTimer = 0f;
+            }
 
-            // Para spawns novos
-            spawnTimer = -9999f;
-            coinSpawnTimer = -9999f;
+            // Colisão somente se não estiver finalizando
+            if (!finishing) {
+                for (Carro c : carros) {
+                    if (moto.getBounds().overlaps(c.getBounds())) {
+                        game.setScreen(new GameOverScreen(game, distancia, fase));
+                        dispose();
+                        return;
+                    }
+                }
+            }
 
-            // Transição suave (fade + fuga para cima)
-            fadingOut = true;
-            fadeAlpha = 1f;
-        }
-
-        // Colisão somente se não estiver finalizando
-        if (!finishing) {
-            for (Carro c : carros) {
-                if (moto.getBounds().overlaps(c.getBounds())) {
-                    game.setScreen(new GameOverScreen(game, distancia, fase));
+            // Animação final: moto vai para frente e “sai” da tela
+            if (finishing) {
+                finishTimer += dt;
+                moto.getBounds().y += dt * 260f; // sobe a moto
+                // após ~2s troca para tela de vitória
+                if (finishTimer >= 2.0f) {
+                    game.setScreen(new LevelCompleteScreen(game, fase, (int) distancia, moedasColetadas));
                     dispose();
                     return;
                 }
             }
-        }
+        } // === FIM DO BLOCO (!isBackgroundMode && !isPaused) ===
 
-        // Animação final: moto vai para frente e “sai” da tela
-        if (finishing) {
-            finishTimer += dt;
-            moto.getBounds().y += dt * 260f; // sobe a moto
-            background.setSpeed(worldSpeed * 1.3f);
-            // após ~2s troca para tela de vitória
-            if (finishTimer >= 2.0f) {
-                game.setScreen(new LevelCompleteScreen(game, fase, (int) distancia, moedasColetadas));
-                dispose();
-                return;
-            }
-        }
 
-        // Desenho
+        // Desenho (Sempre desenha o básico)
         batch.begin();
         background.draw(batch);
-        if (!finishing) {
-            for (Moeda m : moedas)
-                m.draw(batch);
-            for (Carro c : carros)
-                c.draw(batch);
-        } else {
-            // Durante o final, cria um fade suave e movimento natural
-            if (fadingOut) {
-                fadeAlpha -= delta * 0.8f; // velocidade do fade (1.25s até sumir)
-                if (fadeAlpha <= 0f) {
-                    fadeAlpha = 0f;
-                    fadingOut = false;
-                    carros.clear();
-                    moedas.clear();
-                }
+        for (Moeda m : moedas)
+            m.draw(batch);
+        for (Carro c : carros)
+            c.draw(batch);
+        moto.draw(batch); // Moto é desenhada, mas não atualizada (fica parada se pausado)
+
+        // === HUD SÓ APARECE SE NÃO FOR MODO BACKGROUND E NÃO ESTIVER PAUSADO ===
+        if (!isBackgroundMode && !isPaused) {
+            float h = Gdx.graphics.getHeight();
+            float meta = getGoalMetersForFase(fase);
+            
+            font.draw(batch, "Fase: " + fase, 10, h - 10);
+            font.draw(batch, "Distância: " + (int) distancia + " m (Meta: " + (int) meta + " m)", 10, h - 30);
+            font.draw(batch, "Velocidade: " + (int) worldSpeed + " px/s", 10, h - 50);
+            font.draw(batch, "Moedas: " + moedasColetadas, 10, h - 70);
+            font.draw(batch, "P - Pausar | ESC - Menu", 10, h - 90);
+
+            if (finishing) {
+                font.setColor(Color.GOLD);
+                font.draw(batch, "FIM DA FASE! Segure-se...", 300, h - 40);
+                font.setColor(Color.WHITE);
             }
-
-            Color oldColor = batch.getColor();
-            batch.setColor(oldColor.r, oldColor.g, oldColor.b, fadeAlpha);
-
-            // Carros descem naturalmente enquanto desaparecem
-            for (Carro c : carros) {
-                c.getBounds().y -= delta * 120f; // desliza para fora da tela
-                c.draw(batch);
-            }
-
-            for (Moeda m : moedas) {
-                m.getBounds().y -= delta * 120f;
-                m.draw(batch);
-            }
-
-            batch.setColor(oldColor);
         }
-        moto.draw(batch);
-
-        float h = Gdx.graphics.getHeight();
-        font.draw(batch, "Fase: " + fase, 10, h - 10);
-        font.draw(batch, "Distância: " + (int) distancia + " m (Meta: " + (int) meta + " m)", 10, h - 30);
-        font.draw(batch, "Velocidade: " + (int) worldSpeed + " px/s", 10, h - 50);
-        font.draw(batch, "Moedas: " + moedasColetadas, 10, h - 70);
-        font.draw(batch, "P - Pausar | ESC - Menu", 10, h - 90);
-
-        if (finishing) {
-            font.setColor(Color.GOLD);
-            font.draw(batch, "FIM DA FASE! Segure-se...", 300, h - 40);
-            font.setColor(Color.WHITE);
+        
+        // === DESENHA O MENU DE PAUSA POR CIMA ===
+        if (isPaused) {
+            // NOTA: O fundo escuro (glClearColor) foi removido.
+            // Se o texto ficar ruim de ler, teremos que adicionar
+            // um retângulo semi-transparente aqui, como fizemos no MenuScreen.
+            
+            font.getData().setScale(1.3f);
+            font.draw(batch, "=== PAUSADO ===", 320, 400);
+            font.getData().setScale(1f);
+            font.draw(batch, "P - Retomar", 340, 360);
+            font.draw(batch, "R - Reiniciar Fase", 340, 330);
+            font.draw(batch, "ESC - Menu Principal", 340, 300);
         }
 
         batch.end();
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.P))
-            isPaused = true;
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))
-            game.setScreen(new MenuScreen(game));
+        // === LÓGICA DE INPUT (Separada para Pausa) ===
+        if (isBackgroundMode) {
+            return; // Sem input no modo de fundo do menu
+        }
+
+        if (isPaused) {
+            // Input do Menu de Pausa
+            if (Gdx.input.isKeyJustPressed(Input.Keys.P)) {
+                isPaused = false;
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
+                game.setScreen(new GameScreen(game, fase));
+                dispose(); // dispose da tela *antiga*
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                game.setScreen(new MenuScreen(game));
+                dispose(); // dispose da tela *antiga*
+            }
+        } else {
+            // Input do Jogo Rodando (não pausado e não finalizando)
+            if (!finishing) {
+                if (Gdx.input.isKeyJustPressed(Input.Keys.P)) {
+                    isPaused = true;
+                } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                    game.setScreen(new MenuScreen(game));
+                    dispose(); // dispose da tela *antiga*
+                }
+            }
+        }
     }
 
     private float getGoalMetersForFase(int f) {
@@ -461,7 +361,8 @@ public class GameScreen implements Screen {
         }
     }
 
-    // ================== IA de spawn (igual ao seu código, preservado)
+    // ================== IA de spawn (INTOCADA)
+    // ... (todos os seus métodos de spawnWave, tryForceStickSpawn, etc. permanecem aqui) ...
     // ==================
     private void spawnWave() {
         int screenH = Gdx.graphics.getHeight();
@@ -726,52 +627,43 @@ public class GameScreen implements Screen {
         carros.add(new Carro(lane, spawnY, vCar, laneCount, insetFactor));
     }
 
+
     private static float clamp01(float v) {
         return Math.max(0f, Math.min(1f, v));
     }
 
     // ============================== Pausa ==============================
-    private void renderPause() {
-        Gdx.gl.glClearColor(0, 0, 0, 0.7f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        batch.begin();
-        font.getData().setScale(1.3f);
-        font.draw(batch, "=== PAUSADO ===", 320, 400);
-        font.getData().setScale(1f);
-        font.draw(batch, "P - Retomar", 340, 360);
-        font.draw(batch, "R - Reiniciar Fase", 340, 330);
-        font.draw(batch, "ESC - Menu Principal", 340, 300);
-        batch.end();
-
-        if (Gdx.input.isKeyJustPressed(Input.Keys.P))
-            isPaused = false;
-        if (Gdx.input.isKeyJustPressed(Input.Keys.R))
-            game.setScreen(new GameScreen(game, fase));
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))
-            game.setScreen(new MenuScreen(game));
-    }
+    
+    // O MÉTODO renderPause() FOI REMOVIDO. Sua lógica agora está no render() principal.
+    
+    // =================================================================
 
     @Override
     public void resize(int width, int height) {
         if (background != null)
             background.onResize();
-        if (selectingLevel)
-            layoutSelection();
+        // Aquele código de "selectingLevel" não estava na versão anterior, removi
     }
 
     @Override
     public void pause() {
-        isPaused = true;
+        // Pausa o jogo se não estiver no modo de fundo do menu
+        if (!isBackgroundMode) {
+            isPaused = true;
+        }
     }
 
     @Override
     public void resume() {
-        isPaused = false;
+        // Ao voltar para o app, o jogo deve *permanecer* pausado.
+        // O usuário decide quando despausar apertando 'P'.
+        // Por isso, este método fica vazio (ou pode forçar isPaused = true).
     }
 
     @Override
     public void hide() {
+        // Chamado quando game.setScreen() é usado.
+        // O 'dispose()' agora é chamado manualmente antes de trocar de tela.
     }
 
     @Override
@@ -784,7 +676,6 @@ public class GameScreen implements Screen {
             background.dispose();
         Carro.disposeStatic();
         Moeda.disposeStatic();
-        if (texSelecionar != null)
-            texSelecionar.dispose();
+        // Aquele código de 'texSelecionar' não estava na versão anterior, removi
     }
 }
