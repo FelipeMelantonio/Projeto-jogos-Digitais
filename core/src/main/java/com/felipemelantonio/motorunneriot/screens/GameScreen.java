@@ -7,7 +7,9 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout; // Adicionado para centralização
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.utils.Align; // Adicionado para centralização
 import com.badlogic.gdx.utils.Array;
 
 import com.felipemelantonio.motorunneriot.MotoRunnerGame;
@@ -78,8 +80,12 @@ public class GameScreen implements Screen {
     private boolean finishing = false; // durante a animação final
     private float finishTimer = 0f; // cronômetro da animação final
 
-    // ==== MODO BACKGROUND ====
+    // ==== MODO BACKGROUND (para o MenuScreen) ====
     private boolean isBackgroundMode = false;
+    
+    // NOVO: Layout para centralização de texto
+    private GlyphLayout layout = new GlyphLayout();
+
 
     /**
      * Construtor principal para o jogo normal.
@@ -151,30 +157,36 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        // O 'if (isPaused)' que pulava para renderPause() FOI REMOVIDO.
-        // O render() agora sempre executa, mas a lógica interna é condicional.
-
         float dt = Math.min(delta, 1f / 60f);
 
-        // Atualiza o nível (velocidade) apenas se não for modo background E NÃO ESTIVER PAUSADO
-        if (!isBackgroundMode && !isPaused) {
-            level.update(dt);
-        }
         // A velocidade congela se estiver pausado, ou usa a velocidade fixa do modo background
         if (!isBackgroundMode) {
+            // Atualiza o nível (velocidade) apenas se não estiver pausado
+            if (!isPaused) {
+                level.update(dt);
+            }
              worldSpeed = level.worldSpeedPx();
         }
 
+
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        
+        // =================================================================
+        // ATUALIZAÇÃO VISUAL (Move se NÃO estiver pausado OU se for modo background)
+        // =================================================================
+        
+        boolean shouldMove = !isPaused || isBackgroundMode;
 
-        background.setSpeed(worldSpeed);
-        background.update(dt); // O fundo sempre se move
+        if (shouldMove) {
+            background.setSpeed(worldSpeed);
+            background.update(dt);
+        }
 
         // Atualizações só se não estiver finalizando
         if (!finishing) {
 
-            // === LÓGICA DE JOGO SÓ RODA SE NÃO FOR BACKGROUND E NÃO ESTIVER PAUSADO ===
+            // === LÓGICA DE JOGO (Spawns, Moto) SÓ RODA SE NÃO FOR BACKGROUND E NÃO ESTIVER PAUSADO ===
             if (!isBackgroundMode && !isPaused) {
                 moto.update(dt, worldSpeed);
 
@@ -216,26 +228,32 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Atualiza objetos (carros/moedas existentes continuarão se movendo até sair da tela)
-        // Isso roda mesmo pausado, para o "efeito background"
-        for (int i = carros.size - 1; i >= 0; i--) {
-            Carro c = carros.get(i);
-            c.update(dt, worldSpeed);
-            if (c.getBounds().y + c.getBounds().height < 0)
-                carros.removeIndex(i);
-        }
-        for (int i = moedas.size - 1; i >= 0; i--) {
-            Moeda m = moedas.get(i);
-            m.update(dt, worldSpeed);
-            if (m.getBounds().y + m.getBounds().height < 0) {
-                moedas.removeIndex(i);
-                continue;
+        // Atualiza objetos (carros/moedas existentes)
+        if (shouldMove) {
+            for (int i = carros.size - 1; i >= 0; i--) {
+                Carro c = carros.get(i);
+                c.update(dt, worldSpeed);
+                if (c.getBounds().y + c.getBounds().height < 0)
+                    carros.removeIndex(i);
             }
-
-            // Desabilita coleta de moedas no modo background OU PAUSADO
-            if (!finishing && !isBackgroundMode && !isPaused && moto.getBounds().overlaps(m.getBounds())) {
-                moedas.removeIndex(i);
-                moedasColetadas++;
+            for (int i = moedas.size - 1; i >= 0; i--) {
+                Moeda m = moedas.get(i);
+                m.update(dt, worldSpeed);
+                if (m.getBounds().y + m.getBounds().height < 0) {
+                    moedas.removeIndex(i);
+                    continue;
+                }
+            }
+        }
+        
+        // Coleta de Moedas (Lógica que depende do player)
+        if (!finishing && !isBackgroundMode && !isPaused) {
+             for (int i = moedas.size - 1; i >= 0; i--) {
+                Moeda m = moedas.get(i);
+                if (moto.getBounds().overlaps(m.getBounds())) {
+                    moedas.removeIndex(i);
+                    moedasColetadas++;
+                }
             }
         }
 
@@ -245,13 +263,13 @@ public class GameScreen implements Screen {
             distancia += worldSpeed * dt * 0.035f;
 
             // Checa meta e inicia final
-            float meta = getGoalMetersForFase(fase); // 'meta' é declarada aqui
+            float meta = getGoalMetersForFase(fase);
             if (!finishing && distancia >= meta) {
                 finishing = true;
                 finishTimer = 0f;
             }
 
-            // Colisão somente se não estiver finalizando
+            // Colisão
             if (!finishing) {
                 for (Carro c : carros) {
                     if (moto.getBounds().overlaps(c.getBounds())) {
@@ -262,11 +280,10 @@ public class GameScreen implements Screen {
                 }
             }
 
-            // Animação final: moto vai para frente e “sai” da tela
+            // Animação final
             if (finishing) {
                 finishTimer += dt;
-                moto.getBounds().y += dt * 260f; // sobe a moto
-                // após ~2s troca para tela de vitória
+                moto.getBounds().y += dt * 260f; 
                 if (finishTimer >= 2.0f) {
                     game.setScreen(new LevelCompleteScreen(game, fase, (int) distancia, moedasColetadas));
                     dispose();
@@ -276,14 +293,14 @@ public class GameScreen implements Screen {
         } // === FIM DO BLOCO (!isBackgroundMode && !isPaused) ===
 
 
-        // Desenho (Sempre desenha o básico)
+        // Desenho (Sempre desenha)
         batch.begin();
         background.draw(batch);
         for (Moeda m : moedas)
             m.draw(batch);
         for (Carro c : carros)
             c.draw(batch);
-        moto.draw(batch); // Moto é desenhada, mas não atualizada (fica parada se pausado)
+        moto.draw(batch); 
 
         // === HUD SÓ APARECE SE NÃO FOR MODO BACKGROUND E NÃO ESTIVER PAUSADO ===
         if (!isBackgroundMode && !isPaused) {
@@ -303,18 +320,39 @@ public class GameScreen implements Screen {
             }
         }
         
-        // === DESENHA O MENU DE PAUSA POR CIMA ===
+        // === DESENHA O MENU DE PAUSA CENTRALIZADO ===
         if (isPaused) {
-            // NOTA: O fundo escuro (glClearColor) foi removido.
-            // Se o texto ficar ruim de ler, teremos que adicionar
-            // um retângulo semi-transparente aqui, como fizemos no MenuScreen.
+            float screenW = Gdx.graphics.getWidth();
+            float screenH = Gdx.graphics.getHeight();
+            float centerX = screenW / 2f;
             
-            font.getData().setScale(1.3f);
-            font.draw(batch, "=== PAUSADO ===", 320, 400);
-            font.getData().setScale(1f);
-            font.draw(batch, "P - Retomar", 340, 360);
-            font.draw(batch, "R - Reiniciar Fase", 340, 330);
-            font.draw(batch, "ESC - Menu Principal", 340, 300);
+            // Título
+            font.getData().setScale(1.8f);
+            String title = "=== PAUSADO ===";
+            layout.setText(font, title);
+            // Desenha o texto centralizado na largura, em 65% da altura
+            font.draw(batch, title, centerX - layout.width / 2, screenH * 0.65f); 
+
+            // Opções
+            font.getData().setScale(1.2f);
+            float lineHeight = font.getLineHeight() * 1.5f;
+
+            String opt1 = "P - Retomar";
+            layout.setText(font, opt1);
+            // Desenha o texto centralizado na largura
+            font.draw(batch, opt1, centerX - layout.width / 2, screenH * 0.5f + lineHeight);
+
+            String opt2 = "R - Reiniciar Fase";
+            layout.setText(font, opt2);
+            // Desenha o texto centralizado na largura
+            font.draw(batch, opt2, centerX - layout.width / 2, screenH * 0.5f);
+
+            String opt3 = "ESC - Menu Principal";
+            layout.setText(font, opt3);
+            // Desenha o texto centralizado na largura
+            font.draw(batch, opt3, centerX - layout.width / 2, screenH * 0.5f - lineHeight);
+            
+            font.setColor(Color.WHITE); // Reset da cor para o HUD caso o jogo retome
         }
 
         batch.end();
@@ -330,19 +368,19 @@ public class GameScreen implements Screen {
                 isPaused = false;
             } else if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
                 game.setScreen(new GameScreen(game, fase));
-                dispose(); // dispose da tela *antiga*
+                dispose();
             } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
                 game.setScreen(new MenuScreen(game));
-                dispose(); // dispose da tela *antiga*
+                dispose();
             }
         } else {
-            // Input do Jogo Rodando (não pausado e não finalizando)
+            // Input do Jogo Rodando
             if (!finishing) {
                 if (Gdx.input.isKeyJustPressed(Input.Keys.P)) {
                     isPaused = true;
                 } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
                     game.setScreen(new MenuScreen(game));
-                    dispose(); // dispose da tela *antiga*
+                    dispose();
                 }
             }
         }
@@ -361,9 +399,9 @@ public class GameScreen implements Screen {
         }
     }
 
-    // ================== IA de spawn (INTOCADA)
+    // ================== IA de spawn (INTOCADA) ==================
     // ... (todos os seus métodos de spawnWave, tryForceStickSpawn, etc. permanecem aqui) ...
-    // ==================
+
     private void spawnWave() {
         int screenH = Gdx.graphics.getHeight();
         float spawnYBase = screenH + 40f;
@@ -631,23 +669,16 @@ public class GameScreen implements Screen {
     private static float clamp01(float v) {
         return Math.max(0f, Math.min(1f, v));
     }
-
-    // ============================== Pausa ==============================
-    
-    // O MÉTODO renderPause() FOI REMOVIDO. Sua lógica agora está no render() principal.
-    
-    // =================================================================
+    // ==========================================================
 
     @Override
     public void resize(int width, int height) {
         if (background != null)
             background.onResize();
-        // Aquele código de "selectingLevel" não estava na versão anterior, removi
     }
 
     @Override
     public void pause() {
-        // Pausa o jogo se não estiver no modo de fundo do menu
         if (!isBackgroundMode) {
             isPaused = true;
         }
@@ -655,27 +686,22 @@ public class GameScreen implements Screen {
 
     @Override
     public void resume() {
-        // Ao voltar para o app, o jogo deve *permanecer* pausado.
-        // O usuário decide quando despausar apertando 'P'.
-        // Por isso, este método fica vazio (ou pode forçar isPaused = true).
+        // Ao voltar, o jogo permanece pausado.
     }
 
     @Override
     public void hide() {
-        // Chamado quando game.setScreen() é usado.
-        // O 'dispose()' agora é chamado manualmente antes de trocar de tela.
     }
 
     @Override
     public void dispose() {
-        batch.dispose();
-        font.dispose();
+        if (batch != null) batch.dispose();
+        if (font != null) font.dispose();
         if (moto != null)
             moto.dispose();
         if (background != null)
             background.dispose();
         Carro.disposeStatic();
         Moeda.disposeStatic();
-        // Aquele código de 'texSelecionar' não estava na versão anterior, removi
     }
 }
