@@ -7,9 +7,9 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.GlyphLayout; // Adicionado para centralização
+import com.badlogic.gdx.graphics.g2d.GlyphLayout; // Import necessário!
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.utils.Align; // Adicionado para centralização
+import com.badlogic.gdx.utils.Align; // Import necessário!
 import com.badlogic.gdx.utils.Array;
 
 import com.felipemelantonio.motorunneriot.MotoRunnerGame;
@@ -41,7 +41,7 @@ public class GameScreen implements Screen {
     private int moedasColetadas = 0;
 
     private int laneCount;
-    private float worldSpeed;
+    private float worldSpeed; // Velocidade do JOGO (carros, moedas, distância)
     private float spawnTimer;
     private float distancia;
     private boolean isPaused;
@@ -50,58 +50,61 @@ public class GameScreen implements Screen {
     private LevelManager level;
     private Random rng;
 
-    // === Dwell / distribuição ===
+    // ... (Atributos de controle de IA - DWELL, STREAK, etc. - permanecem intocados) ...
+    // ...
     private float[] laneDwell;
     private final float DWELL_DECAY = 0.6f;
     private final float DWELL_CAP = 6.0f;
-
-    // === Fase 1 “oposta” control ===
     private int f1OppositeStreak = 0;
     private final int F1_STREAK_CAP = 2;
     private final float F1_DWELL_BIAS_S = 1.2f;
-
-    // === Fase 2/3 distribuição ===
     private int f23NonPlayerStreak = 0;
     private final int F23_STREAK_CAP = 3;
     private final float BIAS_STRENGTH = 1.2f;
     private final float ADJ_FALLOFF_NEAR = 1.0f;
     private final float ADJ_FALLOFF_ADJ = 0.7f;
     private final float ADJ_FALLOFF_FAR = 0.35f;
-
-    // === “grudado na faixa” ===
     private int lastLane = -1;
     private float sameLaneTime = 0f;
     private final float STICK_THRESHOLD = 1.2f;
     private final float STICK_COOLDOWN_SECS = 1.4f;
     private final float STICK_SAFE_FRONT_PX = 200f;
     private float stickCooldown = 0f;
-
-    // === FIM DE FASE ===
-    private boolean finishing = false; // durante a animação final
-    private float finishTimer = 0f; // cronômetro da animação final
+    private boolean finishing = false; 
+    private float finishTimer = 0f; 
 
     // ==== MODO BACKGROUND (para o MenuScreen) ====
     private boolean isBackgroundMode = false;
     
-    // NOVO: Layout para centralização de texto
+    // Layout para centralização de texto
     private GlyphLayout layout = new GlyphLayout();
+
+    // ==== NOVA FÍSICA DO BACKGROUND "GRAVITACIONAL" ====
+    /** Velocidade ATUAL do background (pixels/segundo) */
+    private float backgroundSpeed; 
+    /** Quanto acelera por segundo ao segurar Espaço (pixels/segundo²) */
+    private final float BACKGROUND_ACCELERATION = 900f; 
+    /** Quanto desacelera por segundo ao soltar Espaço (atrito/arrasto) */
+    private final float BACKGROUND_DRAG = 500f;
+    /** Velocidade máxima que o fundo pode atingir */
+    private final float MAX_BACKGROUND_SPEED = 2500f;
+    // =======================================================
 
 
     /**
      * Construtor principal para o jogo normal.
      */
     public GameScreen(MotoRunnerGame game, int faseSelecionada) {
-        this(game, faseSelecionada, false); // Chama o novo construtor, definindo isBackgroundMode como false
+        this(game, faseSelecionada, false); 
     }
 
     /**
-     * NOVO CONSTRUTOR:
-     * Permite especificar se a tela está sendo usada como um fundo de menu.
+     * Construtor para modo background.
      */
     public GameScreen(MotoRunnerGame game, int faseSelecionada, boolean isBackgroundMode) {
         this.game = game;
         this.fase = Math.max(1, Math.min(3, faseSelecionada));
-        this.isBackgroundMode = isBackgroundMode; // Define o modo
+        this.isBackgroundMode = isBackgroundMode;
     }
 
     @Override
@@ -123,21 +126,9 @@ public class GameScreen implements Screen {
 
         // Config por fase (visual/faixas)
         switch (fase) {
-            case 1:
-                background = new Background("fase1.png", 200f);
-                laneCount = 2;
-                insetFactor = 0.15f;
-                break;
-            case 2:
-                background = new Background("fase2.png", 300f);
-                laneCount = 3;
-                insetFactor = 0.22f;
-                break;
-            default:
-                background = new Background("estrada.png", 400f);
-                laneCount = 4;
-                insetFactor = 0.235f;
-                break;
+            case 1: background = new Background("fase1.png", 200f); laneCount = 2; insetFactor = 0.15f; break;
+            case 2: background = new Background("fase2.png", 300f); laneCount = 3; insetFactor = 0.22f; break;
+            default: background = new Background("estrada.png", 400f); laneCount = 4; insetFactor = 0.235f; break;
         }
 
         moto = new Moto(laneCount, insetFactor);
@@ -147,11 +138,12 @@ public class GameScreen implements Screen {
         coinIntervalBase = (fase == 1 ? 1.2f : fase == 2 ? 1.0f : 0.9f);
         
         if (isBackgroundMode) {
-            worldSpeed = 250f; 
+            worldSpeed = 250f; // Velocidade fixa para o menu
+            backgroundSpeed = worldSpeed; // Fundo do menu usa velocidade fixa
         } else {
-            // Garante que a velocidade seja pega do level na primeira vez
-            level.update(0); // Atualiza o level com delta 0
+            level.update(0); 
             worldSpeed = level.worldSpeedPx();
+            backgroundSpeed = 0f; // Fundo do jogo começa PARADO
         }
     }
 
@@ -159,27 +151,26 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 60f);
 
-        // A velocidade congela se estiver pausado, ou usa a velocidade fixa do modo background
+        // A velocidade do "mundo" (carros, level) congela se pausado
         if (!isBackgroundMode) {
-            // Atualiza o nível (velocidade) apenas se não estiver pausado
             if (!isPaused) {
                 level.update(dt);
             }
-             worldSpeed = level.worldSpeedPx();
+             worldSpeed = level.worldSpeedPx(); // worldSpeed afeta apenas carros, moedas, etc.
         }
 
 
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         
-        // =================================================================
         // ATUALIZAÇÃO VISUAL (Move se NÃO estiver pausado OU se for modo background)
-        // =================================================================
         
         boolean shouldMove = !isPaused || isBackgroundMode;
 
         if (shouldMove) {
-            background.setSpeed(worldSpeed);
+            // No modo de menu (isBackgroundMode), o backgroundSpeed já foi setado para 250f no show()
+            // No modo de jogo (!isBackgroundMode), o backgroundSpeed é controlado pelo Espaço (ver abaixo)
+            background.setSpeed(backgroundSpeed); 
             background.update(dt);
         }
 
@@ -188,57 +179,63 @@ public class GameScreen implements Screen {
 
             // === LÓGICA DE JOGO (Spawns, Moto) SÓ RODA SE NÃO FOR BACKGROUND E NÃO ESTIVER PAUSADO ===
             if (!isBackgroundMode && !isPaused) {
+                // ATENÇÃO: A moto e os carros ainda são controlados pelo worldSpeed (do LevelManager)
+                // Se quiser que a moto acelere com o fundo, teria que mudar aqui.
+                // Por enquanto, ela se move com o "level"
                 moto.update(dt, worldSpeed);
 
                 // Dwell + “grudado”
                 int laneNow = moto.getCurrentLaneIndex();
-                if (laneNow == lastLane)
-                    sameLaneTime += dt;
-                else {
-                    sameLaneTime = 0f;
-                    lastLane = laneNow;
-                }
-
+                if (laneNow == lastLane) sameLaneTime += dt;
+                else { sameLaneTime = 0f; lastLane = laneNow; }
                 for (int i = 0; i < laneCount; i++) {
-                    if (i == laneNow)
-                        laneDwell[i] = Math.min(DWELL_CAP, laneDwell[i] + dt);
-                    else
-                        laneDwell[i] = Math.max(0f, laneDwell[i] - dt * DWELL_DECAY);
+                    if (i == laneNow) laneDwell[i] = Math.min(DWELL_CAP, laneDwell[i] + dt);
+                    else laneDwell[i] = Math.max(0f, laneDwell[i] - dt * DWELL_DECAY);
                 }
-                if (stickCooldown > 0f)
-                    stickCooldown -= dt;
+                if (stickCooldown > 0f) stickCooldown -= dt;
 
-                // Spawns padrão
+                // Spawns (controlados pelo 'level')
                 spawnTimer += dt;
-                if (spawnTimer >= level.spawnInterval()) {
-                    spawnWave();
-                    spawnTimer = 0f;
-                }
-
-                // Força spawn se ficar muito na mesma faixa
+                if (spawnTimer >= level.spawnInterval()) { spawnWave(); spawnTimer = 0f; }
                 tryForceStickSpawn();
 
-                // Coins
+                // Coins (controlados pelo 'level')
                 coinSpawnTimer += dt;
                 float coinIntervalNow = Math.max(0.55f, coinIntervalBase - 0.35f * clamp01(level.getTime() / 60f));
-                if (coinSpawnTimer >= coinIntervalNow) {
-                    spawnCoin();
-                    coinSpawnTimer = 0f;
+                if (coinSpawnTimer >= coinIntervalNow) { spawnCoin(); coinSpawnTimer = 0f; }
+
+
+                // ==== NOVA LÓGICA GRAVITACIONAL PARA FUNDO ====
+                if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+                    // Acelera
+                    backgroundSpeed += BACKGROUND_ACCELERATION * dt;
+                } else {
+                    // Desacelera (atrito)
+                    backgroundSpeed = Math.max(0, backgroundSpeed - BACKGROUND_DRAG * dt);
                 }
+                // Limita a velocidade máxima
+                backgroundSpeed = Math.min(backgroundSpeed, MAX_BACKGROUND_SPEED);
+                // ===============================================
+
             }
         }
 
         // Atualiza objetos (carros/moedas existentes)
-        if (shouldMove) {
+        // ELES CONTINUAM USANDO O worldSpeed (do level), NÃO o backgroundSpeed
+        if (shouldMove) { 
+            // Os carros se movem na velocidade do level, não do fundo
+            float entitySpeed = (isBackgroundMode) ? backgroundSpeed : worldSpeed;
+
             for (int i = carros.size - 1; i >= 0; i--) {
                 Carro c = carros.get(i);
-                c.update(dt, worldSpeed);
+                // No modo de jogo (else), eles usam o worldSpeed do LevelManager
+                c.update(dt, entitySpeed); 
                 if (c.getBounds().y + c.getBounds().height < 0)
                     carros.removeIndex(i);
             }
             for (int i = moedas.size - 1; i >= 0; i--) {
                 Moeda m = moedas.get(i);
-                m.update(dt, worldSpeed);
+                m.update(dt, entitySpeed);
                 if (m.getBounds().y + m.getBounds().height < 0) {
                     moedas.removeIndex(i);
                     continue;
@@ -259,7 +256,7 @@ public class GameScreen implements Screen {
 
         // === LÓGICA DE JOGO (DISTANCIA, COLISÃO) SÓ RODA SE NÃO FOR BACKGROUND E NÃO ESTIVER PAUSADO ===
         if (!isBackgroundMode && !isPaused) {
-            // Distância
+            // Distância é baseada no 'worldSpeed' (LevelManager), não na velocidade do fundo
             distancia += worldSpeed * dt * 0.035f;
 
             // Checa meta e inicia final
@@ -269,7 +266,7 @@ public class GameScreen implements Screen {
                 finishTimer = 0f;
             }
 
-            // Colisão
+            // Colisão (baseada no worldSpeed dos carros)
             if (!finishing) {
                 for (Carro c : carros) {
                     if (moto.getBounds().overlaps(c.getBounds())) {
@@ -296,10 +293,8 @@ public class GameScreen implements Screen {
         // Desenho (Sempre desenha)
         batch.begin();
         background.draw(batch);
-        for (Moeda m : moedas)
-            m.draw(batch);
-        for (Carro c : carros)
-            c.draw(batch);
+        for (Moeda m : moedas) m.draw(batch);
+        for (Carro c : carros) c.draw(batch);
         moto.draw(batch); 
 
         // === HUD SÓ APARECE SE NÃO FOR MODO BACKGROUND E NÃO ESTIVER PAUSADO ===
@@ -309,9 +304,12 @@ public class GameScreen implements Screen {
             
             font.draw(batch, "Fase: " + fase, 10, h - 10);
             font.draw(batch, "Distância: " + (int) distancia + " m (Meta: " + (int) meta + " m)", 10, h - 30);
-            font.draw(batch, "Velocidade: " + (int) worldSpeed + " px/s", 10, h - 50);
-            font.draw(batch, "Moedas: " + moedasColetadas, 10, h - 70);
-            font.draw(batch, "P - Pausar | ESC - Menu", 10, h - 90);
+            // Mostra as duas velocidades (debug)
+            font.draw(batch, "Vel. Jogo (Carros): " + (int) worldSpeed + " px/s", 10, h - 50);
+            font.draw(batch, "Vel. Fundo (Espaço): " + (int) backgroundSpeed + " px/s", 10, h - 70); 
+            font.draw(batch, "Moedas: " + moedasColetadas, 10, h - 90);
+            font.draw(batch, "P - Pausar | ESC - Menu", 10, h - 110);
+
 
             if (finishing) {
                 font.setColor(Color.GOLD);
@@ -330,7 +328,6 @@ public class GameScreen implements Screen {
             font.getData().setScale(1.8f);
             String title = "=== PAUSADO ===";
             layout.setText(font, title);
-            // Desenha o texto centralizado na largura, em 65% da altura
             font.draw(batch, title, centerX - layout.width / 2, screenH * 0.65f); 
 
             // Opções
@@ -339,20 +336,17 @@ public class GameScreen implements Screen {
 
             String opt1 = "P - Retomar";
             layout.setText(font, opt1);
-            // Desenha o texto centralizado na largura
             font.draw(batch, opt1, centerX - layout.width / 2, screenH * 0.5f + lineHeight);
 
             String opt2 = "R - Reiniciar Fase";
             layout.setText(font, opt2);
-            // Desenha o texto centralizado na largura
             font.draw(batch, opt2, centerX - layout.width / 2, screenH * 0.5f);
 
             String opt3 = "ESC - Menu Principal";
             layout.setText(font, opt3);
-            // Desenha o texto centralizado na largura
             font.draw(batch, opt3, centerX - layout.width / 2, screenH * 0.5f - lineHeight);
             
-            font.setColor(Color.WHITE); // Reset da cor para o HUD caso o jogo retome
+            font.setColor(Color.WHITE); 
         }
 
         batch.end();
@@ -388,18 +382,13 @@ public class GameScreen implements Screen {
 
     private float getGoalMetersForFase(int f) {
         switch (f) {
-            case 1:
-                return 500f; // Fase 1
-            case 2:
-                return 1200f; // Fase 2
-            case 3:
-                return 1200f; // Fase 3
-            default:
-                return 1200f;
+            case 1: return 500f; 
+            case 2: return 1200f; 
+            case 3: return 1200f; 
+            default: return 1200f;
         }
     }
 
-    // ================== IA de spawn (INTOCADA) ==================
     // ... (todos os seus métodos de spawnWave, tryForceStickSpawn, etc. permanecem aqui) ...
 
     private void spawnWave() {
@@ -407,10 +396,8 @@ public class GameScreen implements Screen {
         float spawnYBase = screenH + 40f;
 
         float[] topYByLane = new float[laneCount];
-        for (int l = 0; l < laneCount; l++)
-            topYByLane[l] = Float.NEGATIVE_INFINITY;
-        for (Carro c : carros)
-            topYByLane[c.getLaneIndex()] = Math.max(topYByLane[c.getLaneIndex()], c.getBounds().y);
+        for (int l = 0; l < laneCount; l++) topYByLane[l] = Float.NEGATIVE_INFINITY;
+        for (Carro c : carros) topYByLane[c.getLaneIndex()] = Math.max(topYByLane[c.getLaneIndex()], c.getBounds().y);
 
         float minGap = level.laneGapPx();
 
@@ -418,8 +405,7 @@ public class GameScreen implements Screen {
         for (int l = 0; l < laneCount; l++)
             if ((spawnYBase - topYByLane[l]) > minGap)
                 livres.add(l);
-        if (livres.isEmpty())
-            return;
+        if (livres.isEmpty()) return;
 
         boolean isPhase1 = (fase == 1);
         boolean twoLanes = (laneCount == 2);
@@ -432,26 +418,19 @@ public class GameScreen implements Screen {
             boolean dwellHigh = laneDwell[playerLane] >= F1_DWELL_BIAS_S;
             boolean blockOppStreak = (f1OppositeStreak >= F1_STREAK_CAP);
 
-            if (playerLaneFree && (dwellHigh || blockOppStreak))
-                lane1 = playerLane;
+            if (playerLaneFree && (dwellHigh || blockOppStreak)) lane1 = playerLane;
             else {
-                if (playerLaneFree && rng.nextFloat() < 0.65f)
-                    lane1 = playerLane;
-                else
-                    lane1 = livres.get(rng.nextInt(livres.size()));
+                if (playerLaneFree && rng.nextFloat() < 0.65f) lane1 = playerLane;
+                else lane1 = livres.get(rng.nextInt(livres.size()));
             }
-            if (lane1 == opposite)
-                f1OppositeStreak++;
-            else
-                f1OppositeStreak = 0;
+            if (lane1 == opposite) f1OppositeStreak++;
+            else f1OppositeStreak = 0;
 
         } else {
             lane1 = pickLaneWeighted(livres, playerLane);
             boolean nearPlayer = (Math.abs(lane1 - playerLane) <= 1);
-            if (!nearPlayer)
-                f23NonPlayerStreak++;
-            else
-                f23NonPlayerStreak = 0;
+            if (!nearPlayer) f23NonPlayerStreak++;
+            else f23NonPlayerStreak = 0;
 
             if (f23NonPlayerStreak >= F23_STREAK_CAP) {
                 List<Integer> near = new ArrayList<>();
@@ -470,22 +449,17 @@ public class GameScreen implements Screen {
         boolean allowDouble = !(isPhase1 && twoLanes);
         boolean doubleSpawn = allowDouble && rng.nextFloat() < level.pDouble() && !livres.isEmpty();
         if (doubleSpawn) {
-            int lane2 = (fase >= 2) ? pickLaneWeighted(livres, playerLane)
-                    : livres.get(rng.nextInt(livres.size()));
-
+            int lane2 = (fase >= 2) ? pickLaneWeighted(livres, playerLane) : livres.get(rng.nextInt(livres.size()));
             float jitter = 70f + rng.nextFloat() * 110f;
             float y2 = spawnYBase + jitter;
             float minDeltaY = 140f;
-            if (Math.abs(jitter) < minDeltaY)
-                y2 = spawnYBase + minDeltaY;
+            if (Math.abs(jitter) < minDeltaY) y2 = spawnYBase + minDeltaY;
 
             if (lane2 == playerLane) {
                 float motoTop = moto.getBounds().y + moto.getBounds().height;
                 float safeStart = motoTop + STICK_SAFE_FRONT_PX;
-                if (y2 < safeStart)
-                    y2 = safeStart;
+                if (y2 < safeStart) y2 = safeStart;
             }
-
             spawnSingleAtLane(lane2, y2);
         }
 
@@ -495,28 +469,23 @@ public class GameScreen implements Screen {
     }
 
     private void tryForceStickSpawn() {
-        if (sameLaneTime < STICK_THRESHOLD || stickCooldown > 0f)
-            return;
+        if (sameLaneTime < STICK_THRESHOLD || stickCooldown > 0f) return;
 
         int targetLane = moto.getCurrentLaneIndex();
         int screenH = Gdx.graphics.getHeight();
         float spawnYBase = screenH + 40f;
 
         float[] topYByLane = new float[laneCount];
-        for (int l = 0; l < laneCount; l++)
-            topYByLane[l] = Float.NEGATIVE_INFINITY;
-        for (Carro c : carros)
-            topYByLane[c.getLaneIndex()] = Math.max(topYByLane[c.getLaneIndex()], c.getBounds().y);
+        for (int l = 0; l < laneCount; l++) topYByLane[l] = Float.NEGATIVE_INFINITY;
+        for (Carro c : carros) topYByLane[c.getLaneIndex()] = Math.max(topYByLane[c.getLaneIndex()], c.getBounds().y);
 
         float minGap = level.laneGapPx();
 
         int chosenLane = targetLane;
         if ((spawnYBase - topYByLane[targetLane]) <= minGap) {
             int alt = findAdjacentFreeLane(spawnYBase, topYByLane, minGap, targetLane);
-            if (alt != -1)
-                chosenLane = alt;
-            else
-                return;
+            if (alt != -1) chosenLane = alt;
+            else return;
         }
 
         float motoTop = moto.getBounds().y + moto.getBounds().height;
@@ -525,12 +494,10 @@ public class GameScreen implements Screen {
         if (fase == 1 && laneCount == 2) {
             int other = 1 - chosenLane;
             float otherTop = topYByLane[other];
-            if (otherTop > 0 && (y - otherTop) < 160f)
-                y = otherTop + 180f;
+            if (otherTop > 0 && (y - otherTop) < 160f) y = otherTop + 180f;
         }
 
         spawnSingleAtLane(chosenLane, y);
-
         sameLaneTime = 0f;
         stickCooldown = STICK_COOLDOWN_SECS;
     }
@@ -538,11 +505,9 @@ public class GameScreen implements Screen {
     private int findAdjacentFreeLane(float spawnYBase, float[] topYByLane, float minGap, int center) {
         for (int d = 1; d < laneCount; d++) {
             int l = center - d;
-            if (l >= 0 && (spawnYBase - topYByLane[l]) > minGap)
-                return l;
+            if (l >= 0 && (spawnYBase - topYByLane[l]) > minGap) return l;
             int r = center + d;
-            if (r < laneCount && (spawnYBase - topYByLane[r]) > minGap)
-                return r;
+            if (r < laneCount && (spawnYBase - topYByLane[r]) > minGap) return r;
         }
         return -1;
     }
@@ -552,10 +517,8 @@ public class GameScreen implements Screen {
         float spawnYBase = screenH + 40f;
 
         float[] topYByLane = new float[laneCount];
-        for (int l = 0; l < laneCount; l++)
-            topYByLane[l] = Float.NEGATIVE_INFINITY;
-        for (Carro c : carros)
-            topYByLane[c.getLaneIndex()] = Math.max(topYByLane[c.getLaneIndex()], c.getBounds().y);
+        for (int l = 0; l < laneCount; l++) topYByLane[l] = Float.NEGATIVE_INFINITY;
+        for (Carro c : carros) topYByLane[c.getLaneIndex()] = Math.max(topYByLane[c.getLaneIndex()], c.getBounds().y);
 
         float minGapCoin = Math.max(120f, level.laneGapPx() * 0.65f);
 
@@ -563,8 +526,7 @@ public class GameScreen implements Screen {
         for (int l = 0; l < laneCount; l++)
             if ((spawnYBase - topYByLane[l]) > minGapCoin)
                 livres.add(l);
-        if (livres.isEmpty())
-            return;
+        if (livres.isEmpty()) return;
 
         int playerLane = moto.getCurrentLaneIndex();
 
@@ -575,12 +537,9 @@ public class GameScreen implements Screen {
                 near.add(l);
 
         float r = rng.nextFloat();
-        if (livres.contains(playerLane) && r < 0.60f)
-            lane = playerLane;
-        else if (!near.isEmpty() && r < 0.90f)
-            lane = near.get(rng.nextInt(near.size()));
-        else
-            lane = livres.get(rng.nextInt(livres.size()));
+        if (livres.contains(playerLane) && r < 0.60f) lane = playerLane;
+        else if (!near.isEmpty() && r < 0.90f) lane = near.get(rng.nextInt(near.size()));
+        else lane = livres.get(rng.nextInt(livres.size()));
 
         float extraSafe = 60f;
         if ((spawnYBase - topYByLane[lane]) < (minGapCoin + extraSafe)) {
@@ -630,8 +589,7 @@ public class GameScreen implements Screen {
     }
 
     private int pickLaneWeighted(List<Integer> candidates, int playerLane) {
-        if (candidates.size() == 1)
-            return candidates.get(0);
+        if (candidates.size() == 1) return candidates.get(0);
 
         float total = 0f;
         float[] weights = new float[candidates.size()];
@@ -641,9 +599,7 @@ public class GameScreen implements Screen {
             float dwellNorm = (DWELL_CAP <= 0f) ? 0f : Math.min(1f, laneDwell[lane] / DWELL_CAP);
 
             int dist = Math.abs(lane - playerLane);
-            float falloff = (dist == 0) ? ADJ_FALLOFF_NEAR
-                    : (dist == 1) ? ADJ_FALLOFF_ADJ
-                            : ADJ_FALLOFF_FAR;
+            float falloff = (dist == 0) ? ADJ_FALLOFF_NEAR : (dist == 1) ? ADJ_FALLOFF_ADJ : ADJ_FALLOFF_FAR;
 
             float w = 1.0f + BIAS_STRENGTH * dwellNorm * falloff;
             weights[i] = w;
@@ -654,8 +610,7 @@ public class GameScreen implements Screen {
         float acc = 0f;
         for (int i = 0; i < weights.length; i++) {
             acc += weights[i];
-            if (r <= acc)
-                return candidates.get(i);
+            if (r <= acc) return candidates.get(i);
         }
         return candidates.get(candidates.size() - 1);
     }
@@ -669,7 +624,6 @@ public class GameScreen implements Screen {
     private static float clamp01(float v) {
         return Math.max(0f, Math.min(1f, v));
     }
-    // ==========================================================
 
     @Override
     public void resize(int width, int height) {
@@ -686,12 +640,11 @@ public class GameScreen implements Screen {
 
     @Override
     public void resume() {
-        // Ao voltar, o jogo permanece pausado.
     }
 
     @Override
     public void hide() {
-    }
+}
 
     @Override
     public void dispose() {
