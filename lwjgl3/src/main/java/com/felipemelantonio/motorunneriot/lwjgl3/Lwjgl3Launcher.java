@@ -4,34 +4,63 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.felipemelantonio.motorunneriot.MotoRunnerGame;
 
-/** Launches the desktop (LWJGL3) application. */
+/**
+ * Lwjgl3Launcher
+ * ===============
+ * Essa classe é responsável por INICIAR o jogo na versão DESKTOP
+ * (Windows/Linux/Mac).
+ *
+ * O Android e o HTML5 têm seus próprios "launchers".
+ *
+ * O desktop usa o backend LWJGL3 do LibGDX, por isso esse nome.
+ */
 public class Lwjgl3Launcher {
+
     public static void main(String[] args) {
-        if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
+
+        // Essa linha cria uma nova JVM se preciso (suporte a macOS e Windows).
+        // Se ela retornar true, significa que já abriu uma nova JVM e não deve
+        // continuar.
+        if (StartupHelper.startNewJvmIfRequired())
+            return;
+
+        // Cria a instância da aplicação e inicia o jogo
         createApplication();
     }
 
+    /** Cria a aplicação desktop do LibGDX */
     private static Lwjgl3Application createApplication() {
+
+        // Aqui iniciamos o jogo MotoRunnerGame,
+        // passando a configuração definida ali embaixo.
         return new Lwjgl3Application(new MotoRunnerGame(), getDefaultConfiguration());
     }
 
+    /** Configurações de janela/video da versão desktop */
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {
-        Lwjgl3ApplicationConfiguration configuration = new Lwjgl3ApplicationConfiguration();
-        configuration.setTitle("MotoRunnerIoT");
-        //// Vsync limits the frames per second to what your hardware can display, and helps eliminate
-        //// screen tearing. This setting doesn't always work on Linux, so the line after is a safeguard.
-        configuration.useVsync(true);
-        //// Limits FPS to the refresh rate of the currently active monitor, plus 1 to try to match fractional
-        //// refresh rates. The Vsync setting above should limit the actual FPS to match the monitor.
-        configuration.setForegroundFPS(Lwjgl3ApplicationConfiguration.getDisplayMode().refreshRate + 1);
-        //// If you remove the above line and set Vsync to false, you can get unlimited FPS, which can be
-        //// useful for testing performance, but can also be very stressful to some hardware.
-        //// You may also need to configure GPU drivers to fully disable Vsync; this can cause screen tearing.
 
-        configuration.setWindowedMode(640, 480);
-        //// You can change these files; they are in lwjgl3/src/main/resources/ .
-        //// They can also be loaded from the root of assets/ .
-        configuration.setWindowIcon("libgdx128.png", "libgdx64.png", "libgdx32.png", "libgdx16.png");
+        Lwjgl3ApplicationConfiguration configuration = new Lwjgl3ApplicationConfiguration();
+
+        // Nome da janela do jogo
+        configuration.setTitle("MotoRunnerIoT");
+
+        // Ativa Vsync → impede que o jogo rode a FPS absurda e evita screen tearing
+        configuration.useVsync(true);
+
+        // Ajusta o FPS máximo baseado no monitor (opcional, usado como fallback)
+        configuration.setForegroundFPS(
+                Lwjgl3ApplicationConfiguration.getDisplayMode().refreshRate + 1);
+
+        // Deixa o jogo em tela cheia (full screen)
+        configuration.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+
+        // Ícones do jogo (para barra de tarefas e janela)
+        configuration.setWindowIcon(
+                "libgdx128.png",
+                "libgdx64.png",
+                "libgdx32.png",
+                "libgdx16.png");
+
         return configuration;
     }
 }

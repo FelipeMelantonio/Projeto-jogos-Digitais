@@ -5,6 +5,7 @@ Nivel2.png
 Nivel3.png
 Sair.png
 Selecionar.png
+audio.mp3
 carro.png
 carro2.png
 carro3.png
@@ -12,11 +13,12 @@ carro4.png
 carro5.png
 carro6.png
 carro7.png
+coin.mp3
 estrada.png
 fase1.png
 fase2.png
 fasses.png
 gameover-image.jpg
-levelup.jpg
+levelup.png
 moeda.png
 moto.png
