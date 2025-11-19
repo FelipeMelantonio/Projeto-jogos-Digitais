@@ -167,9 +167,9 @@ public class GameScreen implements Screen {
     // BOOST_STEP: cada apertada no ESPAÇO aumenta um pouco a velocidade
     // BOOST_DECAY: a cada frame, o boost vai diminuindo até voltar a 1.0
     // BOOST_MAX: limite máximo para não ficar absurdo
-    private static final float BOOST_STEP = 0.10f; // cada pedalada = +10% de velocidade (antes era 22%)
-    private static final float BOOST_DECAY = 0.20f; // desacelera de volta de forma um pouco mais lenta
-    private static final float BOOST_MAX = 1.35f; // limite de 135% da velocidade base (antes 155%)
+    private static final float BOOST_STEP = 0.06f; // cada pedalada = +6% de velocidade
+    private static final float BOOST_DECAY = 0.18f; // desacelera levemente ao longo do tempo
+    private static final float BOOST_MAX = 1.25f; // limite de 125% da velocidade base
 
     /**
      * Construtor da GameScreen.
@@ -1107,11 +1107,11 @@ public class GameScreen implements Screen {
         // fator de redução conforme a fase
         float slowFactor;
         if (fase == 1) {
-            slowFactor = 1.0f; // Fase 1 mantém igual (já está equilibrada)
+            slowFactor = 0.8f; // Fase 1: mantém igual
         } else if (fase == 2) {
-            slowFactor = 0.55f; // Fase 2 → 45% mais lenta
+            slowFactor = 0.45f; // Fase 2: reduz ainda mais a velocidade
         } else {
-            slowFactor = 0.45f; // Fase 3 → 55% mais lenta
+            slowFactor = 0.38f; // Fase 3: fica mais lenta, mas ainda desafiante
         }
 
         // aplica a redução final
