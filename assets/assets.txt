@@ -19,6 +19,7 @@ fase1.png
 fase2.png
 fasses.png
 gameover-image.jpg
+levelup.jpg
 levelup.png
 moeda.png
 moto.png

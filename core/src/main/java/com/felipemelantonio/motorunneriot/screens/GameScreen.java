@@ -167,9 +167,9 @@ public class GameScreen implements Screen {
     // BOOST_STEP: cada apertada no ESPAÇO aumenta um pouco a velocidade
     // BOOST_DECAY: a cada frame, o boost vai diminuindo até voltar a 1.0
     // BOOST_MAX: limite máximo para não ficar absurdo
-    private static final float BOOST_STEP = 0.22f;
-    private static final float BOOST_DECAY = 0.25f;
-    private static final float BOOST_MAX = 1.55f;
+    private static final float BOOST_STEP = 0.10f; // antes 0.22f — agora sobe só 10% por toque
+    private static final float BOOST_DECAY = 0.20f; // desacelera de forma um pouco mais natural
+    private static final float BOOST_MAX = 1.35f; // limite reduzido para evitar exagero
 
     /**
      * Construtor da GameScreen.
@@ -1098,10 +1098,27 @@ public class GameScreen implements Screen {
      * fator
      * de LevelManager (rivalSpeedFactor).
      */
-    private void spawnSingleAtLane(int lane, float spawnY) {
-        float vCar = worldSpeed * level.rivalSpeedFactor();
-        carros.add(new Carro(lane, spawnY, vCar, laneCount, insetFactor));
+    // ================== CONTROLE DE VELOCIDADE DOS CARROS POR FASE ==================
+private void spawnSingleAtLane(int lane, float spawnY) {
+    // velocidade base do carro (relacionada à velocidade do mundo)
+    float vCarBase = worldSpeed * level.rivalSpeedFactor();
+
+    // fator de redução conforme a fase
+    float slowFactor;
+    if (fase == 1) {
+        slowFactor = 1.0f;   // Fase 1 mantém a mesma velocidade (já está equilibrada)
+    } else if (fase == 2) {
+        slowFactor = 0.7f;   // Fase 2 → carros 30% mais lentos
+    } else {
+        slowFactor = 0.55f;  // Fase 3 → carros 45% mais lentos
     }
+
+    // aplica a redução final
+    float vCar = vCarBase * slowFactor;
+
+    // cria o carro com a velocidade ajustada
+    carros.add(new Carro(lane, spawnY, vCar, laneCount, insetFactor));
+}
 
     /**
      * clamp01()
